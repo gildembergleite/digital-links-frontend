@@ -1,13 +1,16 @@
-"use client"
+'use client'
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@/context/auth-context"
+import { LinkService } from "@/service/link-service"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Edit2, ExternalLink, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
+import { toast } from "sonner"
 import * as z from "zod"
 
 const linkSchema = z.object({
@@ -15,13 +18,19 @@ const linkSchema = z.object({
   url: z.string().url({ message: "URL inválida" }),
 })
 
-type Link = z.infer<typeof linkSchema>
+type Link = {
+  id: string
+  title: string
+  url: string
+}
 
 export default function SocialLinksManager() {
+  const { accessToken } = useAuth()
   const [links, setLinks] = useState<Link[]>([])
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  const form = useForm<Link>({
+  const form = useForm<Omit<Link, "id">>({
     resolver: zodResolver(linkSchema),
     defaultValues: {
       title: "",
@@ -29,16 +38,37 @@ export default function SocialLinksManager() {
     },
   })
 
-  function onSubmit(values: Link) {
-    if (editingIndex !== null) {
-      const updatedLinks = [...links]
-      updatedLinks[editingIndex] = values
-      setLinks(updatedLinks)
-      setEditingIndex(null)
-    } else {
-      setLinks([...links, values])
+  useEffect(() => {
+    async function fetchLinks() {
+      try {
+        const data = await LinkService.list(accessToken)
+        setLinks(data)
+      } catch {
+        toast.error("Erro ao carregar os links")
+      }
     }
-    form.reset()
+
+    fetchLinks()
+  }, [])
+
+  async function onSubmit(values: Omit<Link, "id">) {
+    try {
+      if (editingId) {
+        const updatedLink = await LinkService.update(accessToken, editingId, values)
+        setLinks((prev) => prev.map((link) => (link.id === editingId ? updatedLink : link)))
+        toast.success("Link atualizado com sucesso!")
+      } else {
+        const newLink = await LinkService.create(accessToken, values)
+        setLinks((prev) => [...prev, newLink])
+        toast.success("Link adicionado com sucesso!")
+      }
+
+      setEditingIndex(null)
+      setEditingId(null)
+      form.reset()
+    } catch {
+      toast.error("Erro ao salvar link")
+    }
   }
 
   function editLink(index: number) {
@@ -46,11 +76,17 @@ export default function SocialLinksManager() {
     form.setValue("title", linkToEdit.title)
     form.setValue("url", linkToEdit.url)
     setEditingIndex(index)
+    setEditingId(linkToEdit.id)
   }
 
-  function deleteLink(index: number) {
-    const updatedLinks = links.filter((_, i) => i !== index)
-    setLinks(updatedLinks)
+  async function deleteLink(index: number) {
+    try {
+      await LinkService.delete(accessToken, links[index].id)
+      setLinks((prev) => prev.filter((_, i) => i !== index))
+      toast.success("Link removido com sucesso!")
+    } catch {
+      toast.error("Erro ao remover link")
+    }
   }
 
   return (
@@ -108,7 +144,7 @@ export default function SocialLinksManager() {
           ) : (
             <ul className="space-y-2">
               {links.map((link, index) => (
-                <li key={index} className="flex items-center justify-between p-2 bg-secondary rounded-md">
+                <li key={link.id} className="flex items-center justify-between p-2 bg-secondary rounded-md">
                   <div>
                     <h3 className="font-medium">{link.title}</h3>
                     <a
@@ -134,33 +170,6 @@ export default function SocialLinksManager() {
           )}
         </CardContent>
       </Card>
-
-      {links.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Visualização do Linktree</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 p-6 rounded-lg">
-              <h2 className="text-2xl font-bold text-white text-center mb-4">Seus Links</h2>
-              <div className="space-y-3">
-                {links.map((link, index) => (
-                  <a
-                    key={index}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full py-2 px-4 bg-white text-center rounded-md shadow hover:bg-gray-100 transition duration-300"
-                  >
-                    {link.title}
-                  </a>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
-

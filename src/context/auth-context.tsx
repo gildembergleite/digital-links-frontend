@@ -2,7 +2,7 @@
 
 import LoadingScreen from '@/components/loading'
 import { AuthService, User } from '@/service/auth-service'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { destroyCookie, parseCookies, setCookie } from 'nookies'
 import { createContext, Dispatch, ReactNode, SetStateAction, useContext, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -31,12 +31,14 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const cookies = parseCookies()
+
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
-  const cookies = parseCookies()
+  const [isLoading, setIsLoading] = useState(!pathname.includes('user'))
 
   useEffect(() => {
     const loadUser = async () => {
@@ -53,7 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (isValidUserData) {
           setIsAuthenticated(true)
-          router.push('/dash')
+          if (!pathname.includes('user')) {
+            router.replace('/dash')
+          }
         } else {
           logout()
         }
@@ -91,7 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await registerTokens(accessToken, refreshToken)
         await updateUserData(accessToken)
         setIsAuthenticated(true)
-        router.push('/dash')
+        if (!pathname.includes('user')) {
+          router.replace('/dash')
+        }
       }
 
     } catch (error) {
@@ -110,7 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isValidUserData) {
         toast.success("Login realizado com sucesso!")
         setIsAuthenticated(true)
-        router.push('/dash')
+        if (!pathname.includes('user')) {
+          router.replace('/dash')
+        }
       }
     } catch (error) {
       console.error('Login failed', error)
@@ -124,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       destroyCookie(undefined, 'refreshToken')
       setIsAuthenticated(false)
       setUser(null)
-      router.push('/')
+      router.replace('/')
     } catch (error) {
       console.error('Logout failed', error)
     }
