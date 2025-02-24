@@ -14,14 +14,17 @@ type PublicResponse = {
   }[]
 }
 
-export default async function LinkTreePage({ params: { id } }: { params: { id: string } }) {
-  const url = process.env.NEXT_PUBLIC_API_URL + '/links/public/' + id
-  const response = await fetch(url)
-  const data = await response.json() as PublicResponse
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+export default async function LinkTreePage(props) {
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/links/public/${props.params.id}`
+  const response = await fetch(url, { cache: "no-store" })
 
-  if (!data) {
+  if (!response.ok) {
     redirect('/')
   }
+
+  const data: PublicResponse = await response.json()
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex flex-col items-center justify-center p-4">
@@ -36,7 +39,7 @@ export default async function LinkTreePage({ params: { id } }: { params: { id: s
         </div>
 
         <div className="space-y-4">
-          {data?.links.map((link, index) => (
+          {data.links.map((link, index) => (
             <Button
               key={index}
               variant="outline"
@@ -49,10 +52,7 @@ export default async function LinkTreePage({ params: { id } }: { params: { id: s
             </Button>
           ))}
         </div>
-
-        
       </div>
     </div>
   )
 }
-
