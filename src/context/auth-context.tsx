@@ -16,13 +16,14 @@ type SignupValues = {
 }
 
 type AuthContextType = {
+  accessToken: string | null
   user: User | null
   isAuthenticated: boolean | null
   signup: (values: SignupValues) => Promise<void>
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  refreshToken: () => Promise<boolean>
-  updateUserData: () => Promise<boolean>
+  refreshToken: () => Promise<string | undefined>
+  updateUserData: (accessToken: string) => Promise<boolean>
   registerTokens: (token: string, refreshToken: string) => Promise<void>
   setIsAuthenticated: Dispatch<SetStateAction<boolean | null>>
 }
@@ -30,6 +31,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [accessToken, setAccessToken] = useState<string | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -38,16 +40,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const loadUser = async () => {
-      if (!cookies.accessToken || !cookies.refreshToken) {
+      if (!cookies.refreshToken) {
         logout()
         setTimeout(() => setIsLoading(false), 1500)
         return
       }
 
-      const isValidToken = await refreshToken()
+      const accessToken = await refreshToken()
 
-      if (isValidToken) {
-        const isValidUserData = await updateUserData()
+      if (accessToken) {
+        const isValidUserData = await updateUserData(accessToken)
 
         if (isValidUserData) {
           setIsAuthenticated(true)
@@ -87,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         toast.success("Usuário criado com sucesso!")
         const { accessToken, refreshToken } = data
         await registerTokens(accessToken, refreshToken)
-        await updateUserData()
+        await updateUserData(accessToken)
         setIsAuthenticated(true)
         router.push('/dash')
       }
@@ -103,9 +105,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await registerTokens(accessToken, refreshToken)
 
-      const isValidUserData = await updateUserData()
+      const isValidUserData = await updateUserData(accessToken)
 
-      if (isValidUserData) router.push('/dash')
+      if (isValidUserData) {
+        toast.success("Login realizado com sucesso!")
+        setIsAuthenticated(true)
+        router.push('/dash')
+      }
     } catch (error) {
       console.error('Login failed', error)
       throw error
@@ -133,16 +139,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { accessToken } = await AuthService.refreshToken(cookies.refreshToken)
       await registerTokens(accessToken)
 
-      return true
+      return accessToken
     } catch (error) {
       console.error('Failed to refresh token', error)
-      return false
     }
   }
 
-  const updateUserData = async () => {
+  const updateUserData = async (accessToken: string) => {
+    if (!accessToken) return false
+
     try {
-      const userData = await AuthService.getMe(cookies.accessToken)
+      const userData = await AuthService.getMe(accessToken)
     
       if (userData && userData.id) {
         setUser(userData)
@@ -156,10 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const registerTokens = async (accessToken: string, refreshToken?: string) => {
-    setCookie(undefined, 'accessToken', accessToken, {
-      maxAge: 60 * 60 * 0.5,
-      path: '/',
-    })
+    setAccessToken(accessToken)
     
     if (refreshToken) {
       setCookie(undefined, 'refreshToken', refreshToken, {
@@ -170,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, signup, login, logout, refreshToken, registerTokens, updateUserData, setIsAuthenticated }}>
+    <AuthContext.Provider value={{ accessToken, user, isAuthenticated, signup, login, logout, refreshToken, registerTokens, updateUserData, setIsAuthenticated }}>
       {isLoading ? <LoadingScreen /> : children}
     </AuthContext.Provider>
   )
