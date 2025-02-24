@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@/context/auth-context"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import z from "zod"
@@ -15,6 +16,8 @@ const signinSchema = z.object({
 type SigninFormValues = z.infer<typeof signinSchema>
 
 export function SigninForm() {
+  const { login } = useAuth() 
+  
   const form = useForm<SigninFormValues>({
     resolver: zodResolver(signinSchema),
     defaultValues: {
@@ -24,8 +27,7 @@ export function SigninForm() {
   })
 
   function signin(values: SigninFormValues) {
-    console.log(values)
-    // Implementar lógica de signin aqui
+    login(values.email, values.password)
   }
 
   return (
